@@ -1,6 +1,6 @@
 # Trademarks
 
-The MIT grant above covers this project's own source code. It does not and
+The MIT grant in [LICENSE](LICENSE) covers this project's own source code. It does not and
 cannot cover third-party trademarks. The provider marks bundled in
 Resources/Providers -- including the Anthropic/Claude, Cursor, OpenAI/
 ChatGPT, Google/Antigravity, and xAI/Grok logos -- remain the property of
