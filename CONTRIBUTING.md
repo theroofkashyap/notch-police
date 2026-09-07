@@ -19,7 +19,7 @@ Command Line Tools are enough. Full Xcode is not required.
 4. **Do not log tokens, cookies, or Keychain payloads.** Lengths and HTTP statuses are fine.
 5. **Claude OAuth refresh must persist.** If you touch `ClaudeProvider` / `ClaudeUsage.mergeRefreshedOAuth`, keep the round-trip test and write the new refresh token back before using it. Dropping a rotated refresh token signs the user out of Claude Code.
 6. **Borrow, don't sign in.** Prefer a credential or loopback service the official app already owns. Do not add a username/password form.
-7. **Stay original.** This repo is not a Codenotch fork. Do not paste their sources. Shared ideas (edge notch, local sessions, unofficial usage endpoints) are the category; the code and remaining-first product should stay ours.
+7. **Stay original.** Do not paste code from other projects, whatever its license. Edge notches, borrowed local sessions, and unofficial usage endpoints are the category, not anyone's property; the code here should be ours.
 
 ## Layout of a provider
 

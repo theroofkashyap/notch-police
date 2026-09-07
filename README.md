@@ -6,17 +6,13 @@ A macOS edge notch that answers the question you actually care about: **how much
 
 Claude, Cursor, ChatGPT, Antigravity, and Grok sit on the side of your screen as remaining-quota rings. Hover a ring for every limit window and when it resets. If you are burning quota fast, the tooltip says when you will hit the wall.
 
-This is a new, original codebase. It lives in the same product category as [Codenotch](https://github.com/vinzdg/codenotch) — a native Swift notch that pins assistant usage to a screen edge — but it is not a fork. The product bets are different on purpose:
+What it is built around:
 
-| | Codenotch | Notch Police |
-|---|---|---|
-| Number you see | Percent **used** | Percent **left** (used is a setting) |
-| Naming | Codex | **ChatGPT** (via the local Codex / ChatGPT login) |
-| Pace | Not in v1 | “Empty in 22 min” from recent remaining drop |
-| Alerts | — | Optional notification when remaining is low |
-| OS | macOS 26+ | macOS 14+, Intel and Apple silicon |
-| Updates | Sparkle (maintainer key) | GitHub Releases, build it yourself |
-| Providers | Seven | Five, done carefully |
+- **Remaining first.** The number you see is how much is left. Used is a setting.
+- **Pace.** "Empty in 22 min", fitted from the recent drop in remaining.
+- **Alerts.** An optional notification when remaining falls below a threshold you set.
+- **macOS 14+**, Intel and Apple silicon. Build it yourself; releases on GitHub.
+- **Five providers**, each read from a session your Mac already holds. No sign-in form.
 
 ## What it looks like
 
