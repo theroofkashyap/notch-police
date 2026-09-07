@@ -1,0 +1,17 @@
+.DS_Store
+.build/
+DerivedData/
+*.xcodeproj
+*.xcworkspace
+xcuserdata/
+*.xcuserstate
+NotchPolice.app
+.swiftpm/
+.vscode/
+__pycache__/
+*.pyc
+.env
+.env.*
+*.p8
+*.cer
+*.mobileprovision
