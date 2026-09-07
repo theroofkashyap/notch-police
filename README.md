@@ -1,5 +1,7 @@
 # Notch Police
 
+[![test](https://github.com/theroofkashyap/notch-police/actions/workflows/test.yml/badge.svg)](https://github.com/theroofkashyap/notch-police/actions/workflows/test.yml)
+
 A macOS edge notch that answers the question you actually care about: **how much agent usage is left?**
 
 Claude, Cursor, ChatGPT, Antigravity, and Grok sit on the side of your screen as remaining-quota rings. Hover a ring for every limit window and when it resets. If you are burning quota fast, the tooltip says when you will hit the wall.

@@ -1,0 +1,22 @@
+name: Feature request
+description: A new provider, a setting, or a change to what the notch shows.
+labels: [enhancement]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Read the ground rules in CONTRIBUTING.md first — remaining stays the default number, parsers come before providers, and the app borrows sessions rather than signing you in.
+  - type: textarea
+    id: problem
+    attributes:
+      label: What are you trying to see or do?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+  - type: input
+    id: source
+    attributes:
+      label: For a new provider — where does the local session live, and which usage endpoint does the official app call?

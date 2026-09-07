@@ -1,0 +1,50 @@
+name: Bug report
+description: A ring shows the wrong thing, the notch misbehaves, or a provider stopped parsing.
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Never paste tokens, cookies, Keychain contents, or the raw contents of `auth.json` / `state.vscdb`. HTTP status codes and payload *shapes* with values redacted are enough.
+  - type: dropdown
+    id: provider
+    attributes:
+      label: Provider
+      options:
+        - Claude
+        - Cursor
+        - ChatGPT
+        - Antigravity
+        - Grok
+        - Not provider-specific
+    validations:
+      required: true
+  - type: input
+    id: macos
+    attributes:
+      label: macOS version and chip
+      placeholder: "15.1, Apple silicon"
+    validations:
+      required: true
+  - type: dropdown
+    id: demo
+    attributes:
+      label: Does it reproduce with `make demo`?
+      description: Demo mode uses sample data and reads no credentials, so this separates UI bugs from provider bugs.
+      options:
+        - "Yes"
+        - "No — only with live readings"
+        - Not tried
+    validations:
+      required: true
+  - type: textarea
+    id: what
+    attributes:
+      label: What happened
+      description: What the ring or hover card showed, and what you expected instead.
+    validations:
+      required: true
+  - type: textarea
+    id: steps
+    attributes:
+      label: Steps to reproduce
