@@ -304,6 +304,19 @@ public enum PoliceSelfTests {
             ProviderKind.allCases.allSatisfy(Preferences.default.isEnabled)
         )
 
+        check(
+            "revoked session covers invalid_grant and unauthorized",
+            ClaudeAuthError.isSessionRevoked(400)
+                && ClaudeAuthError.isSessionRevoked(401)
+                && ClaudeAuthError.isSessionRevoked(403)
+        )
+        check(
+            "transient statuses are not a revoked session",
+            !ClaudeAuthError.isSessionRevoked(429)
+                && !ClaudeAuthError.isSessionRevoked(500)
+                && !ClaudeAuthError.isSessionRevoked(200)
+        )
+
         do {
             let suite = "notchpolice.tests.\(UUID().uuidString)"
             let defaults = UserDefaults(suiteName: suite)!

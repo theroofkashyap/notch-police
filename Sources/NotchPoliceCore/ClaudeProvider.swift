@@ -1,5 +1,19 @@
 import Foundation
 
+/// A stored Claude session the server no longer honours. Distinct from a
+/// transport or HTTP error so the UI can route it to "sign in again".
+public enum ClaudeAuthError: Error, Equatable {
+    case sessionRevoked
+
+    /// Statuses from the OAuth token endpoint that mean the refresh token is no
+    /// good: 400 carries `invalid_grant`, and 401/403 are the unauthorized
+    /// family. A 5xx or 429 is *not* here — those are transient and keep the
+    /// last reading instead of prompting a needless re-login.
+    public static func isSessionRevoked(_ status: Int) -> Bool {
+        status == 400 || status == 401 || status == 403
+    }
+}
+
 public final class ClaudeProvider {
     private var memoryToken: String?
     private var memoryExpiry: Date?
@@ -32,6 +46,8 @@ public final class ClaudeProvider {
             )
         } catch KeychainError.notFound {
             return unsigned()
+        } catch ClaudeAuthError.sessionRevoked {
+            return expired()
         } catch {
             return ProviderSnapshot(kind: .claude, status: .error(error.localizedDescription))
         }
@@ -42,6 +58,18 @@ public final class ClaudeProvider {
             kind: .claude,
             status: .needsAuth,
             signInHint: ProviderKind.claude.signInHint
+        )
+    }
+
+    /// A stored session that the server has revoked reads the same to the user
+    /// as never having signed in — the ring is `needsAuth`, not an error — but
+    /// the hint tells them the login they *did* have has lapsed so they know to
+    /// sign in again rather than assume the app is broken.
+    private func expired() -> ProviderSnapshot {
+        ProviderSnapshot(
+            kind: .claude,
+            status: .needsAuth,
+            signInHint: "Your Claude session has expired or been signed out. Run `claude` to sign in again."
         )
     }
 
@@ -143,6 +171,13 @@ public final class ClaudeProvider {
         var response = try await PoliceHTTP.post(ClaudeUsage.tokenURL, headers: headers, body: body)
         if response.status == 404 || response.status == 405 {
             response = try await PoliceHTTP.post(ClaudeUsage.legacyTokenURL, headers: headers, body: body)
+        }
+        // A refresh token the server rejects (revoked, rotated away, or a fresh
+        // login elsewhere) is a re-auth signal, not a transient failure. The
+        // token endpoint answers `invalid_grant` with 400; treat the whole
+        // unauthorized family that way so the ring says "sign in" not "!".
+        if ClaudeAuthError.isSessionRevoked(response.status) {
+            throw ClaudeAuthError.sessionRevoked
         }
         guard response.status == 200 else {
             throw PoliceHTTPError.status(response.status, response.data)
