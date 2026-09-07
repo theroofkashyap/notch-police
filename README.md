@@ -126,4 +126,4 @@ See [CONTRIBUTING.md](CONTRIBUTING.md). New agents should land as a parser with 
 
 [MIT](LICENSE) for this project's code.
 
-The provider logos in `Resources/Providers` are **not** covered by that grant — they belong to Anthropic, Cursor, OpenAI, Google, and xAI, and are included only to identify which ring is which. See the trademark note at the end of [LICENSE](LICENSE) before you fork or redistribute.
+The provider logos in `Resources/Providers` are **not** covered by that grant — they belong to Anthropic, Cursor, OpenAI, Google, and xAI, and are included only to identify which ring is which. See [TRADEMARKS.md](TRADEMARKS.md) before you fork or redistribute.
