@@ -47,7 +47,7 @@ public enum ProviderKind: String, CaseIterable, Identifiable, Codable, Sendable 
     public var signInHint: String {
         switch self {
         case .claude:
-            return "Sign in with Claude Code, then grant keychain access when macOS asks."
+            return "Sign in with Claude Code. Notch Police reads the login it keeps in Keychain."
         case .cursor:
             return "Open Cursor and sign in. Notch Police reads the editor’s local session."
         case .chatgpt:

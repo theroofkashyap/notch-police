@@ -28,7 +28,7 @@ public final class ClaudeProvider {
             return ProviderSnapshot(
                 kind: .claude,
                 status: .accessDenied,
-                signInHint: "macOS blocked the Claude login in Keychain. Click Allow, or right-click the notch → Ask Keychain again."
+                signInHint: "macOS blocked the Claude login in Keychain. Unlock your login keychain, or right-click the notch → Ask Keychain again."
             )
         } catch KeychainError.notFound {
             return unsigned()

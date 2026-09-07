@@ -40,24 +40,29 @@ public struct Preferences: Equatable, Sendable {
 
 public final class PreferenceStore {
     private let defaults: UserDefaults
+    private let environment: [String: String]
     private let key = "notchpolice.preferences.v1"
 
-    public init(defaults: UserDefaults = .standard) {
+    public init(
+        defaults: UserDefaults = .standard,
+        environment: [String: String] = ProcessInfo.processInfo.environment
+    ) {
         self.defaults = defaults
+        self.environment = environment
+    }
+
+    /// `NOTCH_POLICE_DEMO=1` is a launch override for screenshots and bug
+    /// reports. It applies to this process only and never reaches disk.
+    private var demoOverride: Bool {
+        environment["NOTCH_POLICE_DEMO"] == "1"
     }
 
     public func load() -> Preferences {
-        var prefs = Preferences.default
-        if let data = defaults.data(forKey: key),
-           let stored = try? JSONDecoder().decode(Stored.self, from: data)
-        {
-            prefs = stored.make()
-        }
-        // The demo flag is a launch override for screenshots and bug reports.
-        // It must not quietly rewrite a saved Dock preference, so it only
-        // turns the Dock icon on when nothing has been saved yet.
-        if ProcessInfo.processInfo.environment["NOTCH_POLICE_DEMO"] == "1" {
+        var prefs = stored() ?? Preferences.default
+        if demoOverride {
             prefs.demo = true
+            // Do not quietly rewrite a saved Dock preference either; only
+            // turn the icon on when nothing has been saved yet.
             if defaults.data(forKey: key) == nil {
                 prefs.showDockIcon = true
             }
@@ -66,10 +71,24 @@ public final class PreferenceStore {
     }
 
     public func save(_ prefs: Preferences) {
-        let encoder = JSONEncoder()
-        if let data = try? encoder.encode(Stored(prefs)) {
+        var toStore = prefs
+        // Persisting the override would make `make demo` followed by
+        // `make run` keep showing sample data. Write whatever demo value was
+        // already saved instead. A user turning demo *off* under the override
+        // still persists, because that is a real choice.
+        if demoOverride, prefs.demo {
+            toStore.demo = stored()?.demo ?? false
+        }
+        if let data = try? JSONEncoder().encode(Stored(toStore)) {
             defaults.set(data, forKey: key)
         }
+    }
+
+    private func stored() -> Preferences? {
+        guard let data = defaults.data(forKey: key),
+              let stored = try? JSONDecoder().decode(Stored.self, from: data)
+        else { return nil }
+        return stored.make()
     }
 
     private struct Stored: Codable {

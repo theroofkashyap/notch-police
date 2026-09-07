@@ -49,7 +49,9 @@ If a session is missing — or Antigravity is not running — that ring shows a 
 
 No vendor publishes a supported “remaining %” SDK for these consumer plans. The adapters call the same unofficial endpoints the official apps already call. Those shapes can change without notice. A throttled or failed poll keeps the previous reading rather than blanking the ring, and a missing session shows `needs auth` — the notch will not invent a percentage.
 
-**Claude refresh tokens rotate, and Claude Code rotates them too.** If Notch Police refreshes the OAuth token, it re-reads the stored credentials and only writes back when the refresh token it started from is still there. If Claude Code rotated in the meantime, the write is abandoned rather than replacing a newer token with an older one and locking both apps out. The first launch will ask macOS to Allow access to Claude Code’s Keychain item; choose Always Allow.
+**Claude refresh tokens rotate, and Claude Code rotates them too.** If Notch Police refreshes the OAuth token, it re-reads the stored credentials and only writes back when the refresh token it started from is still there. If Claude Code rotated in the meantime, the write is abandoned rather than replacing a newer token with an older one and locking both apps out.
+
+**Notch Police never asks for Keychain permission.** It reads and writes that item through `/usr/bin/security`, the Apple tool Claude Code created it with and the only client the item’s access list names, so no build of Notch Police triggers the “Always Allow” dialog — not even an ad-hoc one straight out of `make run`. If macOS ever does show a Keychain dialog, it is asking you to unlock the *login keychain*, not to grant Notch Police access; unlock it and the ring recovers on the next poll.
 
 **Cursor’s included allowance running out does not mean you are cut off.** Cursor keeps serving requests from bonus credits, so the rings follow the percentages Cursor’s own UI quotes and treat spend dollars as context. An exhausted $20 allowance will not show as an empty quota.
 
@@ -92,7 +94,7 @@ If the notch is easy to miss against a dark wallpaper, click the menu bar extra 
 
 The app lands at `.build/NotchPolice.app`. Drag it to `/Applications` if you want it to stay.
 
-There is no Developer ID requirement for local builds. Unsigned / ad-hoc builds may prompt for Keychain access after every rebuild; a stable signing identity makes “Always Allow” stick.
+There is no Developer ID requirement for local builds, and ad-hoc builds do not trigger Keychain prompts: the Claude item is read through `/usr/bin/security`, so the app’s own signature never enters into it.
 
 ## Settings
 

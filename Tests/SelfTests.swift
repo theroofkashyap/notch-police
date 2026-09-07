@@ -304,6 +304,78 @@ public enum PoliceSelfTests {
             ProviderKind.allCases.allSatisfy(Preferences.default.isEnabled)
         )
 
+        do {
+            let suite = "notchpolice.tests.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suite)!
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let plain = PreferenceStore(defaults: defaults, environment: [:])
+            let override = PreferenceStore(defaults: defaults, environment: ["NOTCH_POLICE_DEMO": "1"])
+
+            var live = plain.load()
+            live.edge = .left
+            plain.save(live)
+            check("demo override applies at launch", override.load().demo)
+            override.save(override.load())
+            check("demo override does not persist", plain.load().demo == false)
+            check("demo override keeps other settings", plain.load().edge == .left)
+
+            var off = override.load()
+            off.demo = false
+            override.save(off)
+            check("demo off under override persists", plain.load().demo == false)
+
+            var on = plain.load()
+            on.demo = true
+            plain.save(on)
+            override.save(override.load())
+            check("demo override keeps a saved on", plain.load().demo)
+        }
+
+        do {
+            // A scratch keychain in a temp directory: never the login keychain.
+            let dir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("notchpolice-tests-\(UUID().uuidString)")
+            try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
+            let path = dir.appendingPathComponent("scratch.keychain-db").path
+            func security(_ args: [String]) {
+                let p = Process()
+                p.executableURL = URL(fileURLWithPath: "/usr/bin/security")
+                p.arguments = args
+                p.standardOutput = FileHandle.nullDevice
+                p.standardError = FileHandle.nullDevice
+                try? p.run()
+                p.waitUntilExit()
+            }
+            defer {
+                security(["delete-keychain", path])
+                try? FileManager.default.removeItem(at: dir)
+            }
+            security(["create-keychain", "-p", "scratch", path])
+
+            let service = "notchpolice.test.\(UUID().uuidString)"
+            let json = Data(#"{"claudeAiOauth":{"accessToken":"a\"b\\c d","refreshToken":"r/t=","expiresAt":1}}"#.utf8)
+            try Keychain.updateGenericPassword(service: service, account: "tester", data: json, keychain: path)
+            let back = try Keychain.readGenericPassword(service: service, keychain: path)
+            check("keychain round-trip via security tool", back.data == json && back.account == "tester")
+
+            let rotated = Data(#"{"claudeAiOauth":{"accessToken":"n","refreshToken":"r2","expiresAt":2}}"#.utf8)
+            try Keychain.updateGenericPassword(service: service, account: back.account, data: rotated, keychain: path)
+            check(
+                "keychain update in place",
+                try Keychain.readGenericPassword(service: service, keychain: path).data == rotated
+            )
+
+            var missing = false
+            do {
+                _ = try Keychain.readGenericPassword(service: "\(service).missing", keychain: path)
+            } catch KeychainError.notFound {
+                missing = true
+            }
+            check("keychain missing item is notFound", missing)
+        } catch {
+            check("keychain scratch test threw \(error)", false)
+        }
+
         let start = Date(timeIntervalSince1970: 0)
         let pace = Forecast.pace(
             samples: [
