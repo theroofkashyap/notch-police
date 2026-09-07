@@ -152,6 +152,19 @@ public final class UsageStore: ObservableObject {
         )
     }
 
+    /// The prompt-only handover. No transcript text goes into it; the local
+    /// session is consulted only for the project name, from the same cache
+    /// the hover warms, so this is as instant as the context copy.
+    public func summaryPrompt(for kind: ProviderKind) async -> String {
+        let snap = visibleSnapshots.first(where: { $0.kind == kind })
+            ?? ProviderSnapshot(kind: kind, status: .needsAuth, signInHint: kind.signInHint)
+        return Handover.summaryPrompt(
+            snapshot: snap,
+            pace: pace(for: kind),
+            project: await excerpt(for: kind)?.project
+        )
+    }
+
     /// Warms the excerpt while the user is still hovering, so the project name
     /// is on the button before it is clicked and the copy itself is instant.
     public func prepareContext(for kind: ProviderKind) {

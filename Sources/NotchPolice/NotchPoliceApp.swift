@@ -54,6 +54,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
+    func copySummaryPrompt() {
+        guard let kind = store.hovered ?? store.dyingKind ?? store.visibleSnapshots.first?.kind else { return }
+        Task { @MainActor in
+            Clipboard.copy(await store.summaryPrompt(for: kind))
+        }
+    }
+
     func previewContext() {
         guard let kind = store.hovered ?? store.dyingKind ?? store.visibleSnapshots.first?.kind else { return }
         notch?.showPreview(for: kind)
@@ -108,6 +115,7 @@ struct MenuBarMenu: View {
         SettingsLink { Text("Settings…") }
         Button("Refresh now") { delegate.refresh() }
         Button("Copy dying context") { delegate.copyContext() }
+        Button("Copy summary prompt") { delegate.copySummaryPrompt() }
         Button("Preview context…") { delegate.previewContext() }
         Divider()
         Button("Hide notch for 1 hour") { delegate.hideHour() }

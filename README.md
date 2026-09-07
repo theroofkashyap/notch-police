@@ -22,7 +22,7 @@ A black bezel notch welded to a screen edge — inverse corners, thin brass hair
 - **Amber** — under 50% left
 - **Red, pulsing** — under 20% left, or empty
 
-Hover for 5-hour / weekly / cycle windows. Once remaining drops to your alert threshold, the card shows **Credits dying — copy context** — that puts a handover prompt plus the latest local session on the clipboard so you can paste into another agent. Click a ring to open that product’s usage page. Right-click for Refresh, Copy context, Preview context, Settings, Hide for an hour, Quit.
+Hover for 5-hour / weekly / cycle windows. Once remaining drops to your alert threshold, the card shows **Credits dying — copy context** — that puts a handover prompt plus the latest local session on the clipboard so you can paste into another agent. Next to it, **Copy summary prompt** goes the other way: paste that into the chat that is running out, and the agent that still holds the whole conversation writes the handover itself. Click a ring to open that product’s usage page. Right-click for Refresh, Copy context, Copy summary prompt, Preview context, Settings, Hide for an hour, Quit.
 
 ### The handover is your own conversation text
 
@@ -30,6 +30,8 @@ Copy context reads the most recent local transcript available from Claude Code, 
 
 - **It is scoped to one project.** The newest transcript on the machine is often from a different repository than the one in front of you, so candidates are grouped by the working directory that produced them and the group holding the most recently touched transcript wins. The chosen project is printed on the button before you click and again in the pasted text.
 - **Read it before pasting.** Nothing is redacted. Right-click the notch and choose **Preview context…** to see the exact text, with its length, before it goes anywhere.
+
+**Copy summary prompt** puts none of your conversation on the clipboard. It is a prompt asking the current agent for a handover brief — goal, done, in progress, decisions, next steps, gotchas, commands — with a header line so its answer can be pasted into the next agent as-is. When the chat still has enough credits to answer, this is the better handover; Copy context is the fallback for when it does not.
 
 ## What it reads
 

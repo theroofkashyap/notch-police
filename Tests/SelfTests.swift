@@ -486,6 +486,26 @@ public enum PoliceSelfTests {
         let scopedPack = Handover.make(snapshot: dying, pace: nil, excerpt: scoped, now: now)
         check("handover names project", scopedPack.contains("Project: notch-police"))
 
+        let prompt = Handover.summaryPrompt(
+            snapshot: dying,
+            pace: Pace(minutesToEmpty: 22, copy: "Empty in 22 min"),
+            project: "notch-police"
+        )
+        check("summary prompt names provider", prompt.contains("My Claude credits"))
+        check("summary prompt states remaining and pace", prompt.contains("12% left, empty in 22 min"))
+        check("summary prompt names project", prompt.contains("Project: notch-police"))
+        check("summary prompt asks for next steps", prompt.contains("**Next steps**"))
+        check(
+            "summary prompt sets the handover header",
+            prompt.contains("\"Handover from a Claude session on notch-police\"")
+        )
+        check("summary prompt carries no transcript", !prompt.contains("Ship the copy-context button."))
+        let bare = Handover.summaryPrompt(snapshot: dying, pace: nil, project: nil)
+        check(
+            "summary prompt without project",
+            bare.contains("\"Handover from a Claude session\"") && !bare.contains("Project:")
+        )
+
         // Claude and Cursor slug the same working directory differently.
         check(
             "project key normalises across providers",

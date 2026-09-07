@@ -8,8 +8,10 @@ struct TooltipCard: View {
     var dyingBelow: Double
     var contextProject: String?
     var onCopyContext: () -> Void
+    var onCopySummary: () -> Void
 
-    @State private var copied = false
+    @State private var copiedContext = false
+    @State private var copiedSummary = false
 
     var body: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -69,18 +71,37 @@ struct TooltipCard: View {
                             .font(.system(size: 10, weight: .medium))
                             .foregroundStyle(Palette.muted)
                     }
-                    CopyContextButton(
-                        dying: snapshot.isDying(below: dyingBelow),
-                        project: contextProject,
-                        copied: copied,
-                        action: {
-                            onCopyContext()
-                            copied = true
-                            DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-                                copied = false
+
+                    // Two handovers. The summary prompt is the better one
+                    // whenever this chat still has credits to answer; the
+                    // context copy is the fallback for when it does not.
+                    let dying = snapshot.isDying(below: dyingBelow)
+                    VStack(spacing: 6) {
+                        HandoverButton(
+                            label: dying ? "Credits dying — copy context" : "Copy context",
+                            copiedLabel: "Copied — paste into another agent",
+                            detail: contextProject,
+                            symbol: "doc.on.doc",
+                            prominent: dying,
+                            copied: copiedContext,
+                            action: {
+                                onCopyContext()
+                                flash($copiedContext)
                             }
-                        }
-                    )
+                        )
+                        HandoverButton(
+                            label: "Copy summary prompt",
+                            copiedLabel: "Copied — paste into this chat",
+                            detail: "Asks this chat to write the handover itself",
+                            symbol: "text.bubble",
+                            prominent: false,
+                            copied: copiedSummary,
+                            action: {
+                                onCopySummary()
+                                flash($copiedSummary)
+                            }
+                        )
+                    }
                 }
             }
         }
@@ -92,14 +113,26 @@ struct TooltipCard: View {
                 .stroke(Palette.brass.opacity(0.22), lineWidth: 0.8)
         )
     }
+
+    private func flash(_ flag: Binding<Bool>) {
+        flag.wrappedValue = true
+        Task { @MainActor in
+            try? await Task.sleep(nanoseconds: 1_600_000_000)
+            flag.wrappedValue = false
+        }
+    }
 }
 
-private struct CopyContextButton: View {
-    var dying: Bool
-    /// Named on the button because the handover carries real conversation
-    /// text, and the user should see which project it came from before the
-    /// clipboard is involved.
-    var project: String?
+private struct HandoverButton: View {
+    var label: String
+    var copiedLabel: String
+    /// Second line. For the context copy it names the project the
+    /// conversation text came from, so the user sees where it is from before
+    /// the clipboard is involved; for the prompt copy it says what pasting
+    /// the prompt does.
+    var detail: String?
+    var symbol: String
+    var prominent: Bool
     var copied: Bool
     var action: () -> Void
 
@@ -107,36 +140,32 @@ private struct CopyContextButton: View {
         Button(action: action) {
             VStack(alignment: .leading, spacing: 2) {
                 HStack(spacing: 6) {
-                    Image(systemName: copied ? "checkmark" : "doc.on.doc")
+                    Image(systemName: copied ? "checkmark" : symbol)
                         .font(.system(size: 10, weight: .semibold))
-                    Text(copied ? "Copied — paste into another agent" : label)
+                    Text(copied ? copiedLabel : label)
                         .font(.system(size: 11, weight: .semibold))
                         .lineLimit(2)
                         .multilineTextAlignment(.leading)
                 }
-                if let project, !copied {
-                    Text(project)
+                if let detail, !copied {
+                    Text(detail)
                         .font(.system(size: 10))
                         .lineLimit(1)
                         .truncationMode(.middle)
                         .opacity(0.75)
                 }
             }
-            .foregroundStyle(dying && !copied ? Color.black : .white)
+            .foregroundStyle(prominent && !copied ? Color.black : .white)
             .frame(maxWidth: .infinity, alignment: .leading)
             .padding(.horizontal, 10)
             .padding(.vertical, 8)
             .background(
                 copied ? Palette.band(.clear).opacity(0.85)
-                    : dying ? Palette.brass : Color.white.opacity(0.08),
+                    : prominent ? Palette.brass : Color.white.opacity(0.08),
                 in: RoundedRectangle(cornerRadius: 10, style: .continuous)
             )
         }
         .buttonStyle(.plain)
-    }
-
-    private var label: String {
-        dying ? "Credits dying — copy context" : "Copy context"
     }
 }
 

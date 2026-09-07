@@ -10,7 +10,7 @@ A macOS menu bar app (Swift, SwiftUI hosted in an `NSPanel`) that pins a black b
 
 | Path | What lives there |
 |---|---|
-| `Sources/NotchPoliceCore/` | Everything without UI. One `*Usage.swift` parser and one `*Provider.swift` per agent; `Keychain`; `Preferences`; `UsageStore` (polling, backoff, samples); `Forecast` (pace); `Handover` and `SessionContext` (copy-context); `Fixtures` (demo data). |
+| `Sources/NotchPoliceCore/` | Everything without UI. One `*Usage.swift` parser and one `*Provider.swift` per agent; `Keychain`; `Preferences`; `UsageStore` (polling, backoff, samples); `Forecast` (pace); `Handover` and `SessionContext` (the context copy and the summary prompt); `Fixtures` (demo data). |
 | `Sources/NotchPolice/` | The app. `NotchPanel` (window and placement), `NotchRootView` (rings, hover, context menu), `RingCell`, `TooltipCard`, `BezelNotchShape`, `SettingsView`, `NotchPoliceApp` (menu bar extra, Settings scene). |
 | `Tests/SelfTests.swift` | The whole suite, compiled into the core module so it can reach internal helpers. `Scripts/TestHost.swift` runs it. |
 | `Scripts/` | `build.sh`, `bundle.sh`, `test.sh`, `generate-icon.py`. There is no `Package.swift` and no Xcode project. |

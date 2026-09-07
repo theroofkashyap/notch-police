@@ -103,7 +103,8 @@ struct NotchRootView: View {
                 pace: store.pace(for: snap.kind),
                 dyingBelow: store.preferences.dyingBelow,
                 contextProject: store.contextProjects[snap.kind],
-                onCopyContext: { copyContext(for: snap.kind) }
+                onCopyContext: { copyContext(for: snap.kind) },
+                onCopySummary: { copySummaryPrompt(for: snap.kind) }
             )
             .padding(edgePadding(edge))
             .transition(.opacity.combined(with: .scale(scale: 0.98, anchor: tooltipAnchor(edge))))
@@ -117,6 +118,9 @@ struct NotchRootView: View {
             }
             Button(copyMenuTitle) {
                 if let kind = preferredKind { copyContext(for: kind) }
+            }
+            Button("Copy summary prompt") {
+                if let kind = preferredKind { copySummaryPrompt(for: kind) }
             }
             Button("Preview context…") {
                 if let kind = preferredKind { onPreview(kind) }
@@ -143,6 +147,12 @@ struct NotchRootView: View {
     private func copyContext(for kind: ProviderKind) {
         Task { @MainActor in
             Clipboard.copy(await store.handover(for: kind))
+        }
+    }
+
+    private func copySummaryPrompt(for kind: ProviderKind) {
+        Task { @MainActor in
+            Clipboard.copy(await store.summaryPrompt(for: kind))
         }
     }
 
