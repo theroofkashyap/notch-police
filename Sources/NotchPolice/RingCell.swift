@@ -5,26 +5,42 @@ struct RingCell: View {
     var snapshot: ProviderSnapshot
     var mode: DisplayMode
     var highlighted: Bool
+    /// Vertical edges stack the label under the ring. Horizontal edges put it
+    /// beside the ring instead: the pill is only `depth` tall there, and a
+    /// stacked cell overflows it and gets clipped by the bezel.
+    var vertical: Bool = true
 
     var body: some View {
         let remaining = snapshot.primaryRemaining
         let band = UsageBand.fromRemaining(remaining)
         let percent = snapshot.tightest.map { $0.displayPercent(mode: mode) }
-        VStack(spacing: 4) {
-            RemainingRing(
-                remaining: mode == .remaining ? remaining : percent,
-                band: band,
-                kind: snapshot.kind,
-                pulse: band == .critical || band == .empty
-            )
-            .frame(width: NotchMetrics.ring, height: NotchMetrics.ring)
+        let ring = RemainingRing(
+            remaining: mode == .remaining ? remaining : percent,
+            band: band,
+            kind: snapshot.kind,
+            pulse: band == .critical || band == .empty
+        )
+        .frame(width: NotchMetrics.ring, height: NotchMetrics.ring)
+        let label = Text(percentLabel(percent, status: snapshot.status, mode: mode))
+            .font(.system(size: 11, weight: .semibold, design: .rounded))
+            .foregroundStyle(labelColor(snapshot.status, band: band))
+            .monospacedDigit()
 
-            Text(percentLabel(percent, status: snapshot.status, mode: mode))
-                .font(.system(size: 11, weight: .semibold, design: .rounded))
-                .foregroundStyle(labelColor(snapshot.status, band: band))
-                .monospacedDigit()
+        Group {
+            if vertical {
+                VStack(spacing: 4) {
+                    ring
+                    label
+                }
+                .frame(width: NotchMetrics.depth - 8, height: NotchMetrics.cell)
+            } else {
+                HStack(spacing: 6) {
+                    ring
+                    label
+                }
+                .frame(width: NotchMetrics.wideCell, height: NotchMetrics.depth - 16)
+            }
         }
-        .frame(width: NotchMetrics.depth - 8, height: NotchMetrics.cell)
         .opacity(highlighted || snapshot.isLive ? 1 : 0.85)
     }
 

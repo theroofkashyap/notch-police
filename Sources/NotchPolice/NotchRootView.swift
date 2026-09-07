@@ -7,6 +7,11 @@ struct NotchRootView: View {
     var onPreview: (ProviderKind) -> Void
     var onQuit: () -> Void
 
+    /// Pending collapse after the cursor leaves. The window resizes around
+    /// the tooltip, and hover flaps while it does, so leaving waits a beat
+    /// and re-entering cancels it.
+    @State private var collapse: Task<Void, Never>?
+
     var body: some View {
         let edge = store.preferences.edge
         let snaps = store.visibleSnapshots
@@ -40,10 +45,22 @@ struct NotchRootView: View {
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: alignment(for: edge))
         .background(Color.clear)
+        // Hover has to cover the whole transparent window, gap and card
+        // included, or crossing from the pill to the tooltip counts as leaving.
+        .contentShape(Rectangle())
         .preferredColorScheme(.dark)
         .onHover { hovering in
-            store.expanded = hovering
-            if !hovering { store.hovered = nil }
+            collapse?.cancel()
+            if hovering {
+                store.expanded = true
+            } else {
+                collapse = Task { @MainActor in
+                    try? await Task.sleep(nanoseconds: 180_000_000)
+                    guard !Task.isCancelled else { return }
+                    store.expanded = false
+                    store.hovered = nil
+                }
+            }
         }
     }
 
@@ -53,14 +70,21 @@ struct NotchRootView: View {
             RingCell(
                 snapshot: snap,
                 mode: store.preferences.displayMode,
-                highlighted: store.hovered == snap.kind
+                highlighted: store.hovered == snap.kind,
+                vertical: edge.isVertical
             )
             .onHover { hovering in
-                if hovering {
+                guard hovering else { return }
+                collapse?.cancel()
+                // Only publish real changes: every store change re-lays out
+                // the window, and re-hovering the same ring is not a change.
+                if store.hovered != snap.kind {
                     store.hovered = snap.kind
-                    store.expanded = true
-                    store.prepareContext(for: snap.kind)
                 }
+                if !store.expanded {
+                    store.expanded = true
+                }
+                store.prepareContext(for: snap.kind)
             }
             .onTapGesture {
                 NSWorkspace.shared.open(snap.kind.dashboardURL)

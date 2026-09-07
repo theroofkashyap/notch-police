@@ -75,8 +75,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 }
 
+/// `openSettings` is a SwiftUI environment action, so it is captured from a
+/// view that is always alive (the menu bar label) and handed to the AppKit
+/// callers: the notch's context menu, first launch, and Dock re-open.
+@MainActor
+final class SettingsOpener {
+    static let shared = SettingsOpener()
+    var open: (() -> Void)?
+}
+
 struct MenuBarLabel: View {
     @ObservedObject var store: UsageStore
+    @Environment(\.openSettings) private var openSettings
 
     var body: some View {
         let parts = store.visibleSnapshots.compactMap { snap -> String? in
@@ -84,6 +94,9 @@ struct MenuBarLabel: View {
             return "\(snap.kind.shortName) \(Int(remaining.rounded()))"
         }
         Text(parts.isEmpty ? "NP" : parts.joined(separator: "  "))
+            .onAppear {
+                SettingsOpener.shared.open = { openSettings() }
+            }
     }
 }
 
