@@ -53,6 +53,49 @@ public enum PoliceSelfTests {
         check("claude 1 percent stays 1", abs(lowPercent.windows[0].usedPercent - 1) < 0.01)
         check("claude 1 percent not empty", lowPercent.windows[0].remainingPercent == 99)
 
+        let mixed = ProviderSnapshot(
+            kind: .claude,
+            windows: [
+                LimitWindow(id: "session", label: "5-hour session", usedPercent: 18),
+                LimitWindow(id: "weekly", label: "Weekly", usedPercent: 26),
+                LimitWindow(id: "scoped-Fable", label: "Fable weekly", usedPercent: 38),
+            ],
+            status: .ok
+        )
+        check("tightest is scoped", mixed.tightest?.id == "scoped-Fable")
+        check("unpinned remaining is tightest", mixed.primaryRemaining == 62)
+        check("pin session remaining", mixed.pinning("session").primaryRemaining == 82)
+        check("pin weekly remaining", mixed.pinning("weekly").primaryRemaining == 74)
+        check("missing pin falls back", mixed.pinning("gone").displayed?.id == "scoped-Fable")
+        check(
+            "empty pin invents nothing",
+            ProviderSnapshot(kind: .claude, status: .ok).pinning("session").primaryRemaining == nil
+        )
+        let choices = RingWindowPin.options(kind: .claude, windows: mixed.windows)
+        check("claude ring options include session", choices.contains { $0.id == "session" })
+        check("claude ring options include weekly", choices.contains { $0.id == "weekly" })
+        check("claude ring options include fable", choices.contains { $0.id == "scoped-Fable" })
+        check(
+            "stale pin stays in picker",
+            RingWindowPin.options(
+                kind: .claude,
+                windows: [LimitWindow(id: "session", label: "5-hour session", usedPercent: 10)],
+                pinned: "scoped-Fable"
+            ).contains { $0.id == "scoped-Fable" }
+        )
+        check(
+            "scoped pin label without snapshot",
+            RingWindowPin.label(for: "scoped-Fable", kind: .claude, windows: []) == "Fable weekly"
+        )
+        check(
+            "claude pin options without snapshot",
+            RingWindowPin.options(kind: .claude, windows: []).map(\.id) == ["session", "weekly"]
+        )
+        check(
+            "grok has a single stable window",
+            RingWindowPin.options(kind: .grok, windows: []).count == 1
+        )
+
         check("scale percent when mixed", PercentScale.detect([0.4, 12]) == .percent)
         check("scale fraction when all sub-one", PercentScale.detect([0.4, 0.1]) == .fraction)
         check("scale percent at exactly one", PercentScale.detect([1.0]) == .percent)
@@ -79,6 +122,25 @@ public enum PoliceSelfTests {
         check("merge refresh", oauth["refreshToken"] as? String == "new-refresh")
         check("merge expiry", oauth["expiresAt"] as? Int == 1_100_000)
         check("merge preserves extras", (merged["mcpOAuth"] as? [String: Any])?["keep"] as? Bool == true)
+
+        let truncated = Data(#"{"claudeAiOauth":{"accessToken":"tok","refreshToken":"ref","expiresAt":1},"mcpOAuth":{"plugin:drive|abc":{"serverUrl":"https:\/"#.utf8)
+        check("truncated credentials are not JSON", (try? JSONSerialization.jsonObject(with: truncated)) == nil)
+        let recovered = ClaudeUsage.credentialsObject(from: truncated)
+        let recoveredOAuth = recovered?["claudeAiOauth"] as? [String: Any]
+        check("truncated blob still yields oauth", recoveredOAuth?["accessToken"] as? String == "tok")
+        check("truncated blob still yields refresh", recoveredOAuth?["refreshToken"] as? String == "ref")
+        check("truncated blob drops incomplete mcpOAuth", recovered?["mcpOAuth"] == nil)
+
+        let cutInsideOAuth = Data(#"{"claudeAiOauth":{"accessToken":"tok","refreshTok"#.utf8)
+        check("cut inside oauth yields nothing usable", ClaudeUsage.credentialsObject(from: cutInsideOAuth) == nil)
+
+        let spliced = ClaudeUsage.replacingOAuthObject(
+            in: truncated,
+            with: ["accessToken": "n", "refreshToken": "r2", "expiresAt": 2]
+        )
+        let splicedOAuth = ClaudeUsage.credentialsObject(from: spliced ?? Data())?["claudeAiOauth"] as? [String: Any]
+        check("splice updates access", splicedOAuth?["accessToken"] as? String == "n")
+        check("splice keeps truncated tail", String(data: spliced ?? Data(), encoding: .utf8)?.contains("mcpOAuth") == true)
 
         do {
             // Shape captured from the live endpoint: the included allowance is
@@ -342,6 +404,22 @@ public enum PoliceSelfTests {
             plain.save(on)
             override.save(override.load())
             check("demo override keeps a saved on", plain.load().demo)
+
+            var pinned = plain.load()
+            pinned.ringWindows[.claude] = "session"
+            plain.save(pinned)
+            check("ring pin persists", plain.load().ringWindows[.claude] == "session")
+        }
+
+        do {
+            let suite = "notchpolice.tests.oldprefs.\(UUID().uuidString)"
+            let defaults = UserDefaults(suiteName: suite)!
+            defer { defaults.removePersistentDomain(forName: suite) }
+            let json = Data(#"{"edge":"left","displayMode":"used","enabled":{"claude":true,"cursor":true,"chatgpt":true,"antigravity":true,"grok":true},"pollSeconds":90,"notifyBelow":15,"showDockIcon":true,"demo":false}"#.utf8)
+            defaults.set(json, forKey: "notchpolice.preferences.v1")
+            let loaded = PreferenceStore(defaults: defaults, environment: [:]).load()
+            check("old prefs still load", loaded.edge == .left && loaded.displayMode == .used)
+            check("old prefs default to tightest", loaded.ringWindows.isEmpty)
         }
 
         do {
@@ -385,6 +463,15 @@ public enum PoliceSelfTests {
                 missing = true
             }
             check("keychain missing item is notFound", missing)
+
+            // Bigger than `security -i`'s 4 KB line, with quotes that would
+            // expand further when escaped. Must still round-trip.
+            let bulky = Data("{\"claudeAiOauth\":{\"accessToken\":\"\(String(repeating: "ab\"c", count: 800))\",\"refreshToken\":\"r\"}}".utf8)
+            try Keychain.updateGenericPassword(service: service, account: "tester", data: bulky, keychain: path)
+            check(
+                "keychain round-trip bulky json",
+                try Keychain.readGenericPassword(service: service, keychain: path).data == bulky
+            )
         } catch {
             check("keychain scratch test threw \(error)", false)
         }

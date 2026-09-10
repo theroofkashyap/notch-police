@@ -4,6 +4,8 @@ public struct Preferences: Equatable, Sendable {
     public var edge: ScreenEdge
     public var displayMode: DisplayMode
     public var enabled: [ProviderKind: Bool]
+    /// Window id the ring follows, per provider. Missing means tightest.
+    public var ringWindows: [ProviderKind: String]
     public var pollSeconds: Int
     public var notifyBelow: Int
     public var showDockIcon: Bool
@@ -19,6 +21,7 @@ public struct Preferences: Equatable, Sendable {
             .antigravity: true,
             .grok: true,
         ],
+        ringWindows: [:],
         pollSeconds: 90,
         notifyBelow: 15,
         showDockIcon: true,
@@ -27,6 +30,13 @@ public struct Preferences: Equatable, Sendable {
 
     public func isEnabled(_ kind: ProviderKind) -> Bool {
         enabled[kind] ?? true
+    }
+
+    public func ringWindowID(for kind: ProviderKind) -> String? {
+        guard let id = ringWindows[kind], !id.isEmpty, id != RingWindowPin.tightest else {
+            return nil
+        }
+        return id
     }
 
     /// The low-credit alert and the copy-context button read the same number so
@@ -95,6 +105,7 @@ public final class PreferenceStore {
         var edge: String
         var displayMode: String
         var enabled: [String: Bool]
+        var ringWindows: [String: String]?
         var pollSeconds: Int
         var notifyBelow: Int
         var showDockIcon: Bool
@@ -104,6 +115,7 @@ public final class PreferenceStore {
             edge = prefs.edge.rawValue
             displayMode = prefs.displayMode.rawValue
             enabled = Dictionary(uniqueKeysWithValues: prefs.enabled.map { ($0.key.rawValue, $0.value) })
+            ringWindows = Dictionary(uniqueKeysWithValues: prefs.ringWindows.map { ($0.key.rawValue, $0.value) })
             pollSeconds = prefs.pollSeconds
             notifyBelow = prefs.notifyBelow
             showDockIcon = prefs.showDockIcon
@@ -117,10 +129,19 @@ public final class PreferenceStore {
                     enabledMap[kind] = value
                 }
             }
+            var pins: [ProviderKind: String] = [:]
+            for (key, value) in ringWindows ?? [:] {
+                guard let kind = ProviderKind(rawValue: key),
+                      !value.isEmpty,
+                      value != RingWindowPin.tightest
+                else { continue }
+                pins[kind] = value
+            }
             return Preferences(
                 edge: ScreenEdge(rawValue: edge) ?? .right,
                 displayMode: DisplayMode(rawValue: displayMode) ?? .remaining,
                 enabled: enabledMap,
+                ringWindows: pins,
                 pollSeconds: max(30, pollSeconds),
                 notifyBelow: min(50, max(0, notifyBelow)),
                 showDockIcon: showDockIcon,

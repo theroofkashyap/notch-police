@@ -5,7 +5,16 @@ import Foundation
 public final class UsageStore: ObservableObject {
     @Published public private(set) var snapshots: [ProviderSnapshot] = []
     @Published public var preferences: Preferences {
-        didSet { preferenceStore.save(preferences) }
+        didSet {
+            preferenceStore.save(preferences)
+            if oldValue.ringWindows != preferences.ringWindows {
+                for kind in ProviderKind.allCases
+                where oldValue.ringWindows[kind] != preferences.ringWindows[kind] {
+                    samples[kind] = []
+                    notified.remove(kind)
+                }
+            }
+        }
     }
     @Published public var hiddenUntil: Date?
     @Published public var hovered: ProviderKind?
@@ -42,8 +51,9 @@ public final class UsageStore: ObservableObject {
     public var visibleSnapshots: [ProviderSnapshot] {
         ProviderKind.allCases.compactMap { kind in
             guard preferences.isEnabled(kind) else { return nil }
-            return snapshots.first(where: { $0.kind == kind })
+            let snap = snapshots.first(where: { $0.kind == kind })
                 ?? ProviderSnapshot(kind: kind, status: .needsAuth, signInHint: kind.signInHint)
+            return snap.pinning(preferences.ringWindowID(for: kind))
         }
     }
 
@@ -193,7 +203,8 @@ public final class UsageStore: ObservableObject {
     private func recordSamples(_ snaps: [ProviderSnapshot]) {
         let now = Date()
         for snap in snaps {
-            guard snap.status == .ok, let remaining = snap.primaryRemaining else { continue }
+            let pinned = snap.pinning(preferences.ringWindowID(for: snap.kind))
+            guard snap.status == .ok, let remaining = pinned.primaryRemaining else { continue }
             var list = samples[snap.kind] ?? []
             list.append(RemainingSample(at: now, remaining: remaining))
             let cutoff = now.addingTimeInterval(-6 * 3600)
@@ -205,11 +216,12 @@ public final class UsageStore: ObservableObject {
         let threshold = Double(preferences.notifyBelow)
         guard threshold > 0 else { return }
         for snap in snaps {
-            guard snap.status == .ok, let remaining = snap.primaryRemaining else { continue }
+            let pinned = snap.pinning(preferences.ringWindowID(for: snap.kind))
+            guard snap.status == .ok, let remaining = pinned.primaryRemaining else { continue }
             if remaining <= threshold {
                 if !notified.contains(snap.kind) {
                     notified.insert(snap.kind)
-                    onLowRemaining?(snap, remaining)
+                    onLowRemaining?(pinned, remaining)
                 }
             } else if remaining > threshold + 5 {
                 notified.remove(snap.kind)

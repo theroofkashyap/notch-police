@@ -105,6 +105,7 @@ There is no Developer ID requirement for local builds, and ad-hoc builds do not 
 - Edge: right, left, top, bottom
 - Remaining vs used
 - Per-agent on/off (off means that provider’s local data source is not read)
+- Per-agent ring window: tightest, or a specific session / weekly / model cap
 - Poll interval
 - Notify when remaining drops below N%
 - Dock icon on/off
@@ -116,7 +117,7 @@ There is no Developer ID requirement for local builds, and ad-hoc builds do not 
 - `Sources/NotchPolice` — bezel notch `NSPanel`, rings, tooltip, settings
 - `Tests` — response-shape fixtures and unit tests, compiled into the same module as the core so they can reach internal helpers without widening the shipped API
 
-Each provider returns a `ProviderSnapshot` with one or more `LimitWindow`s. The ring shows the **tightest** window (least remaining). Percentages are normalised per response rather than per value, because a lone `1.0` is ambiguous between one percent and a full quota — a payload only counts as 0–1 when every reading in it is under 1.
+Each provider returns a `ProviderSnapshot` with one or more `LimitWindow`s. The ring shows the **tightest** window (least remaining) unless you pin another in Settings. Percentages are normalised per response rather than per value, because a lone `1.0` is ambiguous between one percent and a full quota — a payload only counts as 0–1 when every reading in it is under 1.
 
 Forecast is a least-squares fit over remaining samples from the last few hours. It discards samples from before a quota reset, and stays quiet until it has at least two minutes of real decline. Samples live in memory, so pace appears a few minutes after launch rather than immediately.
 

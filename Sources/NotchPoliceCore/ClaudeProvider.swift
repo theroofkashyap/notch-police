@@ -108,13 +108,13 @@ public final class ClaudeProvider {
     private func loadCredentials() throws -> Creds {
         if let file = credentialsFile(),
            let data = try? Data(contentsOf: file),
-           let root = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+           let root = ClaudeUsage.credentialsObject(from: data),
            let creds = creds(from: root, source: .file(file))
         {
             return creds
         }
         let record = try Keychain.readGenericPassword(service: ClaudeUsage.keychainService)
-        guard let root = try JSONSerialization.jsonObject(with: record.data) as? [String: Any],
+        guard let root = ClaudeUsage.credentialsObject(from: record.data),
               let creds = creds(from: root, source: .keychain(account: record.account))
         else {
             throw KeychainError.notFound
@@ -225,17 +225,35 @@ public final class ClaudeProvider {
             return try? JSONSerialization.data(withJSONObject: root, options: [])
         }
 
+        // Whole-document merge when the blob is valid JSON. If `mcpOAuth` was
+        // truncated, splice only the OAuth object so the leftover tail stays.
+        func persistData(from raw: Data) -> Data? {
+            if let current = try? JSONSerialization.jsonObject(with: raw) as? [String: Any] {
+                return merged(onto: current)
+            }
+            guard let current = ClaudeUsage.credentialsObject(from: raw),
+                  ClaudeUsage.refreshToken(in: current) == creds.refresh
+            else { return nil }
+            let root = ClaudeUsage.mergeRefreshedOAuth(
+                existing: current,
+                accessToken: accessToken,
+                refreshToken: refreshToken,
+                expiresIn: expiresIn,
+                scope: scope
+            )
+            guard let oauth = root["claudeAiOauth"] as? [String: Any] else { return nil }
+            return ClaudeUsage.replacingOAuthObject(in: raw, with: oauth)
+        }
+
         switch creds.source {
         case .file(let url):
             guard let data = try? Data(contentsOf: url),
-                  let current = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let out = merged(onto: current)
+                  let out = persistData(from: data)
             else { return }
             try? out.write(to: url, options: [.atomic])
         case .keychain(let account):
             guard let record = try? Keychain.readGenericPassword(service: ClaudeUsage.keychainService),
-                  let current = try? JSONSerialization.jsonObject(with: record.data) as? [String: Any],
-                  let out = merged(onto: current)
+                  let out = persistData(from: record.data)
             else { return }
             try? Keychain.updateGenericPassword(
                 service: ClaudeUsage.keychainService,

@@ -27,7 +27,7 @@ Command Line Tools are enough. Full Xcode is not required. If you are automating
 Kind  →  owned local source  →  official usage endpoint  →  [LimitWindow]
 ```
 
-The ring uses the tightest window. Extra windows belong on the hover card.
+The ring uses the tightest window unless the user pins another in Settings. Extra windows belong on the hover card.
 
 ## Release
 

@@ -13,7 +13,7 @@ struct RingCell: View {
     var body: some View {
         let remaining = snapshot.primaryRemaining
         let band = UsageBand.fromRemaining(remaining)
-        let percent = snapshot.tightest.map { $0.displayPercent(mode: mode) }
+        let percent = snapshot.displayed.map { $0.displayPercent(mode: mode) }
         let ring = RemainingRing(
             remaining: mode == .remaining ? remaining : percent,
             band: band,

@@ -47,6 +47,10 @@ public struct ProviderSnapshot: Equatable, Sendable, Identifiable {
     public var fetchedAt: Date
     public var status: SnapshotStatus
     public var signInHint: String?
+    /// Window id the ring should follow. `nil` (and any id that is not in
+    /// `windows`) means the tightest window, so a vanished scoped cap cannot
+    /// invent a percentage.
+    public var pinnedWindowID: String?
 
     public init(
         kind: ProviderKind,
@@ -54,7 +58,8 @@ public struct ProviderSnapshot: Equatable, Sendable, Identifiable {
         windows: [LimitWindow] = [],
         fetchedAt: Date = Date(),
         status: SnapshotStatus,
-        signInHint: String? = nil
+        signInHint: String? = nil,
+        pinnedWindowID: String? = nil
     ) {
         self.kind = kind
         self.plan = plan
@@ -62,6 +67,7 @@ public struct ProviderSnapshot: Equatable, Sendable, Identifiable {
         self.fetchedAt = fetchedAt
         self.status = status
         self.signInHint = signInHint
+        self.pinnedWindowID = pinnedWindowID
     }
 
     public var id: String { kind.rawValue }
@@ -73,8 +79,22 @@ public struct ProviderSnapshot: Equatable, Sendable, Identifiable {
         windows.max { $0.usedPercent < $1.usedPercent }
     }
 
+    /// The window the ring, alerts, and pace follow.
+    public var displayed: LimitWindow? {
+        if let pinnedWindowID, let match = windows.first(where: { $0.id == pinnedWindowID }) {
+            return match
+        }
+        return tightest
+    }
+
     public var primaryRemaining: Double? {
-        tightest.map(\.remainingPercent)
+        displayed.map(\.remainingPercent)
+    }
+
+    public func pinning(_ windowID: String?) -> ProviderSnapshot {
+        var copy = self
+        copy.pinnedWindowID = windowID
+        return copy
     }
 
     public var isLive: Bool {

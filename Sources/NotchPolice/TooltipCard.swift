@@ -54,7 +54,12 @@ struct TooltipCard: View {
                         .foregroundStyle(Palette.muted)
                 } else {
                     ForEach(snapshot.windows) { window in
-                        WindowRow(window: window, mode: mode)
+                        WindowRow(
+                            window: window,
+                            mode: mode,
+                            onRing: snapshot.windows.count > 1
+                                && snapshot.displayed?.id == window.id
+                        )
                     }
                     if let pace {
                         Text(pace.copy)
@@ -172,6 +177,7 @@ private struct HandoverButton: View {
 private struct WindowRow: View {
     var window: LimitWindow
     var mode: DisplayMode
+    var onRing: Bool = false
 
     var body: some View {
         let remaining = window.remainingPercent
@@ -182,6 +188,14 @@ private struct WindowRow: View {
                 Text(window.label)
                     .font(.system(size: 11, weight: .medium))
                     .foregroundStyle(.white.opacity(0.86))
+                if onRing {
+                    Text("ring")
+                        .font(.system(size: 9, weight: .medium))
+                        .foregroundStyle(Palette.brass)
+                        .padding(.horizontal, 5)
+                        .padding(.vertical, 1)
+                        .background(Palette.brass.opacity(0.12), in: Capsule())
+                }
                 Spacer()
                 if let resets = window.resetsAt {
                     Text(ResetCopy.format(resets))

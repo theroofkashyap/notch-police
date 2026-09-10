@@ -81,21 +81,24 @@ public enum Keychain {
         }
         let name = account.flatMap { $0.isEmpty ? nil : $0 } ?? NSUserName()
 
-        if text.contains("\n") || text.contains("\r") {
-            // Interactive mode is one command per line, so a value holding a
-            // newline has to travel in argv. Same-user boundary as above.
-            var args = ["add-generic-password", "-U", "-a", name, "-s", service, "-w", text]
-            if let keychain {
-                args.append(keychain)
-            }
-            _ = try run(args)
+        var argv = ["add-generic-password", "-U", "-a", name, "-s", service, "-w", text]
+        if let keychain {
+            argv.append(keychain)
+        }
+
+        // `security -i` caps a line at 4096 bytes. Claude's item is one JSON
+        // object that also holds mcpOAuth; quoting it for stdin blows past
+        // that cap and the tool silently stores a truncated, illegal blob.
+        // Argv has no such cap. Prefer stdin so the secret stays out of `ps`
+        // when it fits; otherwise the same-user boundary already accepted
+        // above is argv.
+        var line = "add-generic-password -U -a \(quote(name)) -s \(quote(service)) -w \(quote(text))"
+        if let keychain {
+            line += " \(quote(keychain))"
+        }
+        if text.contains("\n") || text.contains("\r") || line.count > 3000 {
+            _ = try run(argv)
         } else {
-            // The secret goes to `security -i` on stdin rather than argv, so
-            // it never shows up in `ps`.
-            var line = "add-generic-password -U -a \(quote(name)) -s \(quote(service)) -w \(quote(text))"
-            if let keychain {
-                line += " \(quote(keychain))"
-            }
             _ = try run(["-i"], stdin: line + "\n")
         }
 

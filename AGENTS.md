@@ -54,7 +54,7 @@ An agent usually cannot see the notch. These checks work from a shell.
 
 ## Adding a provider
 
-1. `ProviderKind`: the case, display name, short name, dashboard URL, sign-in hint and command.
+1. `ProviderKind`: the case, display name, short name, dashboard URL, sign-in hint and command. If the plan has more than one limit window, add `stableRingWindows` so Settings can pin the ring before the first poll.
 2. `XUsage.swift`: the parser, pure functions from JSON to `[LimitWindow]`. Fixture and tests in `SelfTests.swift`.
 3. `XProvider.swift`: find the local session, call the usage endpoint, return a `ProviderSnapshot`. 401 is `.needsAuth`, 429 is `.rateLimited`, anything else is `.error`. Never a guessed number.
 4. `Fixtures.demoSnapshots()`: a demo entry. A test checks that every provider has one.
