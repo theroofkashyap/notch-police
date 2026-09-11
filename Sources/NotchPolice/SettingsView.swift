@@ -3,6 +3,7 @@ import NotchPoliceCore
 
 struct SettingsView: View {
     @ObservedObject var store: UsageStore
+    @State private var openAtLogin = LoginItem.isEnabled
 
     var body: some View {
         Form {
@@ -17,6 +18,8 @@ struct SettingsView: View {
                     Text("Used").tag(DisplayMode.used)
                 }
                 Toggle("Dock icon", isOn: $store.preferences.showDockIcon)
+                Toggle("Open at login", isOn: $openAtLogin)
+                Toggle("Hide agents that aren't signed in", isOn: $store.preferences.hideUnsigned)
                 Toggle("Demo data", isOn: $store.preferences.demo)
             }
 
@@ -53,13 +56,17 @@ struct SettingsView: View {
             }
 
             Section("How it reads") {
-                Text("Notch Police never signs in as you. It borrows sessions already stored by Claude Code, Cursor, Codex, and Grok CLI. Antigravity is read from its loopback-only language server while the app or `agy` is running.")
+                Text("Notch Police never signs in as you. It borrows sessions already stored by Claude Code, Cursor, Codex, and Grok CLI. Antigravity is read from its loopback-only language server while the app or `agy` is running. Claude remaining is the Anthropic plan (Code and claude.ai); ChatGPT remaining is the ChatGPT plan (Codex and ChatGPT). Grok is Build only. Agents turned off here are not read at all.")
                     .font(.callout)
                     .foregroundStyle(.secondary)
             }
         }
         .formStyle(.grouped)
-        .frame(width: 440, height: 620)
+        .frame(width: 440, height: 700)
+        .onAppear { openAtLogin = LoginItem.isEnabled }
+        .onChange(of: openAtLogin) { _, on in
+            openAtLogin = LoginItem.setEnabled(on)
+        }
         .onChange(of: store.preferences.demo) { _, _ in
             Task { await store.refresh() }
         }

@@ -10,6 +10,10 @@ public struct Preferences: Equatable, Sendable {
     public var notifyBelow: Int
     public var showDockIcon: Bool
     public var demo: Bool
+    /// Drop rings that still need a local session, so the notch is only the
+    /// agents that actually have remaining to show. If every enabled agent is
+    /// unsigned, they stay — an empty pill is worse than five dashes.
+    public var hideUnsigned: Bool
 
     public static let `default` = Preferences(
         edge: .right,
@@ -25,7 +29,8 @@ public struct Preferences: Equatable, Sendable {
         pollSeconds: 90,
         notifyBelow: 15,
         showDockIcon: true,
-        demo: false
+        demo: false,
+        hideUnsigned: true
     )
 
     public func isEnabled(_ kind: ProviderKind) -> Bool {
@@ -110,6 +115,7 @@ public final class PreferenceStore {
         var notifyBelow: Int
         var showDockIcon: Bool
         var demo: Bool
+        var hideUnsigned: Bool?
 
         init(_ prefs: Preferences) {
             edge = prefs.edge.rawValue
@@ -120,6 +126,7 @@ public final class PreferenceStore {
             notifyBelow = prefs.notifyBelow
             showDockIcon = prefs.showDockIcon
             demo = prefs.demo
+            hideUnsigned = prefs.hideUnsigned
         }
 
         func make() -> Preferences {
@@ -145,7 +152,8 @@ public final class PreferenceStore {
                 pollSeconds: max(30, pollSeconds),
                 notifyBelow: min(50, max(0, notifyBelow)),
                 showDockIcon: showDockIcon,
-                demo: demo
+                demo: demo,
+                hideUnsigned: hideUnsigned ?? true
             )
         }
     }

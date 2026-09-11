@@ -365,6 +365,131 @@ public enum PoliceSelfTests {
             "every provider enabled by default",
             ProviderKind.allCases.allSatisfy(Preferences.default.isEnabled)
         )
+        check("hide unsigned by default", Preferences.default.hideUnsigned)
+        check(
+            "every provider names its quota pool",
+            ProviderKind.allCases.allSatisfy { !$0.quotaPoolHint.isEmpty }
+        )
+        check(
+            "claude pool covers chat",
+            ProviderKind.claude.quotaPoolHint.contains("claude.ai")
+        )
+        check(
+            "grok pool is build only",
+            ProviderKind.grok.quotaPoolHint.contains("Grok Build")
+        )
+
+        var enabled = Preferences.default.enabled
+        enabled[.claude] = false
+        check(
+            "disabled providers are not polled",
+            VisibleRings.kindsToPoll(enabled: enabled) == [.cursor, .chatgpt, .antigravity, .grok]
+        )
+
+        let liveClaude = ProviderSnapshot(
+            kind: .claude,
+            windows: [LimitWindow(id: "session", label: "5-hour session", usedPercent: 40)],
+            fetchedAt: Date(),
+            status: .ok
+        )
+        let unsignedCursor = ProviderSnapshot(
+            kind: .cursor,
+            status: .needsAuth,
+            signInHint: ProviderKind.cursor.signInHint
+        )
+        let deniedChat = ProviderSnapshot(
+            kind: .chatgpt,
+            status: .accessDenied,
+            signInHint: "unlock keychain"
+        )
+        let allOn = Preferences.default.enabled
+        let shown = VisibleRings.snapshots(
+            from: [liveClaude, unsignedCursor, deniedChat],
+            enabled: allOn,
+            hideUnsigned: true,
+            ringWindowID: { _ in nil },
+            demo: false
+        )
+        check("hide unsigned drops needs-auth", shown.map(\.kind) == [.claude, .chatgpt])
+        check("hide unsigned keeps keychain denial", shown.contains { $0.kind == .chatgpt && $0.status == .accessDenied })
+
+        let noneLive = VisibleRings.snapshots(
+            from: [
+                ProviderSnapshot(kind: .claude, status: .needsAuth),
+                ProviderSnapshot(kind: .cursor, status: .needsAuth),
+            ],
+            enabled: [.claude: true, .cursor: true, .chatgpt: false, .antigravity: false, .grok: false],
+            hideUnsigned: true,
+            ringWindowID: { _ in nil },
+            demo: false
+        )
+        check("hide unsigned keeps dashes when nothing is signed in", noneLive.map(\.kind) == [.claude, .cursor])
+
+        let demoShown = VisibleRings.snapshots(
+            from: Fixtures.demoSnapshots(),
+            enabled: allOn,
+            hideUnsigned: true,
+            ringWindowID: { _ in nil },
+            demo: true
+        )
+        check("demo still shows every enabled provider", demoShown.map(\.kind) == ProviderKind.allCases)
+
+        let offClaude = VisibleRings.snapshots(
+            from: [liveClaude, unsignedCursor],
+            enabled: [.claude: false, .cursor: true, .chatgpt: true, .antigravity: true, .grok: true],
+            hideUnsigned: false,
+            ringWindowID: { _ in nil },
+            demo: false
+        )
+        check("disabled kinds stay off the notch", !offClaude.contains { $0.kind == .claude })
+
+        let richerCursor = ProviderSnapshot(
+            kind: .cursor,
+            windows: [LimitWindow(id: "included", label: "Included usage", usedPercent: 16)],
+            fetchedAt: Date(),
+            status: .ok
+        )
+        let poorerGPT = ProviderSnapshot(
+            kind: .chatgpt,
+            windows: [LimitWindow(id: "five-hour", label: "5-hour", usedPercent: 40)],
+            fetchedAt: Date(),
+            status: .ok
+        )
+        let dest = Handover.destination(
+            among: [liveClaude, richerCursor, poorerGPT, unsignedCursor],
+            leaving: .claude
+        )
+        check("handover picks the most remaining live ring", dest?.kind == .cursor)
+        check(
+            "handover skips unsigned destinations",
+            Handover.destination(among: [liveClaude, unsignedCursor], leaving: .claude) == nil
+        )
+        check(
+            "handover continue names the destination",
+            Handover.continueLine(destination: dest).contains("Continue this work in Cursor (84% left)")
+        )
+
+        let archiveNow = Date()
+        let old = RemainingSample(at: archiveNow.addingTimeInterval(-7 * 3600), remaining: 90)
+        let recent = RemainingSample(at: archiveNow.addingTimeInterval(-600), remaining: 40)
+        let encoded = SampleArchive.encode(
+            [
+                SampleArchive.key(kind: .claude, windowID: "session"): [old, recent],
+                SampleArchive.key(kind: .cursor, windowID: "included"): [old],
+            ],
+            now: archiveNow
+        )!
+        let decoded = SampleArchive.decode(encoded, now: archiveNow)
+        check(
+            "sample archive drops stale points",
+            decoded[SampleArchive.key(kind: .claude, windowID: "session")]?.map(\.remaining) == [40]
+        )
+        check("sample archive drops empty series", decoded[SampleArchive.key(kind: .cursor, windowID: "included")] == nil)
+        check(
+            "sample keys are per window",
+            SampleArchive.key(kind: .claude, windowID: "session")
+                != SampleArchive.key(kind: .claude, windowID: "weekly")
+        )
 
         check(
             "revoked session covers invalid_grant and unauthorized",
@@ -420,6 +545,7 @@ public enum PoliceSelfTests {
             let loaded = PreferenceStore(defaults: defaults, environment: [:]).load()
             check("old prefs still load", loaded.edge == .left && loaded.displayMode == .used)
             check("old prefs default to tightest", loaded.ringWindows.isEmpty)
+            check("old prefs hide unsigned", loaded.hideUnsigned)
         }
 
         do {
@@ -567,6 +693,22 @@ public enum PoliceSelfTests {
         check("handover remaining", pack.contains("12% left"))
         check("handover prompt", pack.contains("switching agents"))
         check("handover transcript", pack.contains("Ship the copy-context button."))
+        check("handover without dest keeps generic continue", pack.contains("the other agent"))
+
+        let cursorDest = ProviderSnapshot(
+            kind: .cursor,
+            windows: [LimitWindow(id: "included", label: "Included usage", usedPercent: 16)],
+            fetchedAt: now,
+            status: .ok
+        )
+        let destPack = Handover.make(
+            snapshot: dying,
+            pace: nil,
+            excerpt: excerpt,
+            destination: cursorDest,
+            now: now
+        )
+        check("handover names destination remaining", destPack.contains("Continue this work in Cursor (84% left)"))
 
         var scoped = excerpt
         scoped?.project = "notch-police"
@@ -587,6 +729,15 @@ public enum PoliceSelfTests {
             prompt.contains("\"Handover from a Claude session on notch-police\"")
         )
         check("summary prompt carries no transcript", !prompt.contains("Ship the copy-context button."))
+        check("summary prompt without dest keeps generic paste", prompt.contains("into the next agent as-is"))
+        let destPrompt = Handover.summaryPrompt(
+            snapshot: dying,
+            pace: Pace(minutesToEmpty: 22, copy: "Empty in 22 min"),
+            project: "notch-police",
+            destination: cursorDest
+        )
+        check("summary prompt names destination", destPrompt.contains("Before I switch to Cursor (84% left)"))
+        check("summary prompt pastes into destination", destPrompt.contains("into Cursor as-is"))
         let bare = Handover.summaryPrompt(snapshot: dying, pace: nil, project: nil)
         check(
             "summary prompt without project",

@@ -7,6 +7,7 @@ struct TooltipCard: View {
     var pace: Pace?
     var dyingBelow: Double
     var contextProject: String?
+    var destination: ProviderSnapshot?
     var onCopyContext: () -> Void
     var onCopySummary: () -> Void
 
@@ -66,6 +67,10 @@ struct TooltipCard: View {
                             .font(.system(size: 11, weight: .medium))
                             .foregroundStyle(Palette.brass)
                     }
+                    Text(snapshot.kind.quotaPoolHint)
+                        .font(.system(size: 10))
+                        .foregroundStyle(Palette.muted)
+                        .fixedSize(horizontal: false, vertical: true)
                     if snapshot.status == .demo {
                         Text("Demo data")
                             .font(.system(size: 10, weight: .medium))
@@ -83,8 +88,9 @@ struct TooltipCard: View {
                     let dying = snapshot.isDying(below: dyingBelow)
                     VStack(spacing: 6) {
                         HandoverButton(
-                            label: dying ? "Credits dying — copy context" : "Copy context",
-                            copiedLabel: "Copied — paste into another agent",
+                            label: contextLabel(dying: dying),
+                            copiedLabel: destination.map { "Copied — paste into \($0.displayName)" }
+                                ?? "Copied — paste into another agent",
                             detail: contextProject,
                             symbol: "doc.on.doc",
                             prominent: dying,
@@ -117,6 +123,15 @@ struct TooltipCard: View {
             RoundedRectangle(cornerRadius: 16, style: .continuous)
                 .stroke(Palette.brass.opacity(0.22), lineWidth: 0.8)
         )
+    }
+
+    private func contextLabel(dying: Bool) -> String {
+        if let destination {
+            return dying
+                ? "Credits dying — copy for \(destination.displayName)"
+                : "Copy for \(destination.displayName)"
+        }
+        return dying ? "Credits dying — copy context" : "Copy context"
     }
 
     private func flash(_ flag: Binding<Bool>) {

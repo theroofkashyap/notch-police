@@ -42,5 +42,5 @@ enum NotchMetrics {
     /// than it is tall there; the pill is only `depth` tall.
     static let wideCell: CGFloat = 80
     /// Room reserved for the tooltip card along the axis it grows on.
-    static let tooltipHeightAllowance: CGFloat = 380
+    static let tooltipHeightAllowance: CGFloat = 440
 }

@@ -54,6 +54,7 @@ for arch in $ARCHS; do
     -framework AppKit \
     -framework SwiftUI \
     -framework UserNotifications \
+    -framework ServiceManagement \
     -o "$slice/NotchPolice" \
     "${APP_SRCS[@]}"
 

@@ -24,7 +24,7 @@ A black bezel notch welded to a screen edge — inverse corners, thin brass hair
 - **Amber** — under 50% left
 - **Red, pulsing** — under 20% left, or empty
 
-Hover for 5-hour / weekly / cycle windows. Once remaining drops to your alert threshold, the card shows **Credits dying — copy context** — that puts a handover prompt plus the latest local session on the clipboard so you can paste into another agent. Next to it, **Copy summary prompt** goes the other way: paste that into the chat that is running out, and the agent that still holds the whole conversation writes the handover itself. Click a ring to open that product’s usage page. Right-click for Refresh, Copy context, Copy summary prompt, Preview context, Settings, Hide for an hour, Quit.
+Hover for 5-hour / weekly / cycle windows. The card says what that remaining actually covers — Claude Code and claude.ai share a pool; Codex and ChatGPT share one; Grok Build is not grok.com chat. Once remaining drops to your alert threshold, the card shows **Credits dying — copy for Cursor** (or whichever signed-in ring still has the most left) — that puts a handover prompt plus the latest local session on the clipboard so you can paste into that agent. Next to it, **Copy summary prompt** goes the other way: paste that into the chat that is running out, and the agent that still holds the whole conversation writes the handover itself. Click a ring to open that product’s usage page. Right-click for Refresh, Copy context, Copy summary prompt, Preview context, Settings, Hide for an hour, Quit.
 
 ### The handover is your own conversation text
 
@@ -47,7 +47,9 @@ Notch Police **never signs you in**. It borrows a session the tool on your Mac a
 | **Antigravity** | The app, IDE, or `agy` CLI language server on `127.0.0.1` | Per-model remaining and reset times |
 | **Grok** | `~/.grok/auth.json` from `grok login` | Grok Build’s weekly credits and reset |
 
-If a session is missing — or Antigravity is not running — that ring shows a dash and the hover card tells you what to open or how to sign in. Demo data is a toggle in Settings (`NOTCH_POLICE_DEMO=1` on launch).
+If a session is missing — or Antigravity is not running — that ring is hidden by default (turn off **Hide agents that aren't signed in** in Settings if you want the dash and the sign-in hint). Demo data is a toggle in Settings (`NOTCH_POLICE_DEMO=1` on launch).
+
+Claude remaining is the Anthropic plan, so chatting on claude.ai moves the same ring. ChatGPT remaining is the ChatGPT plan, so Codex and ChatGPT share it. Grok is Grok Build only.
 
 ### Honest caveats
 
@@ -104,6 +106,8 @@ There is no Developer ID requirement for local builds, and ad-hoc builds do not 
 
 - Edge: right, left, top, bottom
 - Remaining vs used
+- Hide agents that aren't signed in (if every enabled agent still needs a session, the dashes stay)
+- Open at login
 - Per-agent on/off (off means that provider’s local data source is not read)
 - Per-agent ring window: tightest, or a specific session / weekly / model cap
 - Poll interval
@@ -113,13 +117,13 @@ There is no Developer ID requirement for local builds, and ad-hoc builds do not 
 
 ## Architecture
 
-- `Sources/NotchPoliceCore` — parsers, providers, remaining forecast, preferences
+- `Sources/NotchPoliceCore/` — parsers, providers, remaining forecast, preferences; samples persist so pace survives a relaunch; disabled agents are not polled
 - `Sources/NotchPolice` — bezel notch `NSPanel`, rings, tooltip, settings
 - `Tests` — response-shape fixtures and unit tests, compiled into the same module as the core so they can reach internal helpers without widening the shipped API
 
 Each provider returns a `ProviderSnapshot` with one or more `LimitWindow`s. The ring shows the **tightest** window (least remaining) unless you pin another in Settings. Percentages are normalised per response rather than per value, because a lone `1.0` is ambiguous between one percent and a full quota — a payload only counts as 0–1 when every reading in it is under 1.
 
-Forecast is a least-squares fit over remaining samples from the last few hours. It discards samples from before a quota reset, and stays quiet until it has at least two minutes of real decline. Samples live in memory, so pace appears a few minutes after launch rather than immediately.
+Forecast is a least-squares fit over remaining samples from the last few hours, keyed by provider and window so pinning weekly vs 5-hour cannot mix slopes. It discards samples from before a quota reset, and stays quiet until it has at least two minutes of real decline. Samples persist locally (remaining and timestamps only), so pace can appear on the first poll after a relaunch.
 
 ## Contributing
 
