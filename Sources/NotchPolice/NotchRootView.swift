@@ -103,6 +103,7 @@ struct NotchRootView: View {
                 pace: store.pace(for: snap.kind),
                 dyingBelow: store.preferences.dyingBelow,
                 contextProject: store.contextProjects[snap.kind],
+                destination: store.handoverDestination(leaving: snap.kind),
                 onCopyContext: { copyContext(for: snap.kind) },
                 onCopySummary: { copySummaryPrompt(for: snap.kind) }
             )
@@ -139,7 +140,13 @@ struct NotchRootView: View {
     private var copyMenuTitle: String {
         guard let kind = store.hovered ?? store.dyingKind else { return "Copy context" }
         let snap = store.visibleSnapshots.first { $0.kind == kind }
-        return snap?.isDying(below: store.preferences.dyingBelow) == true
+        let dying = snap?.isDying(below: store.preferences.dyingBelow) == true
+        if let dest = store.handoverDestination(leaving: kind) {
+            return dying
+                ? "Copy dying \(kind.displayName) for \(dest.displayName)"
+                : "Copy \(kind.displayName) for \(dest.displayName)"
+        }
+        return dying
             ? "Copy dying \(kind.displayName) context"
             : "Copy \(kind.displayName) context"
     }

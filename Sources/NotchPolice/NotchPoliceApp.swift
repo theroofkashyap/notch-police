@@ -15,11 +15,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         ProcessInfo.processInfo.disableAutomaticTermination("notch overlay")
         NSApp.setActivationPolicy(store.preferences.showDockIcon ? .regular : .accessory)
         notch = NotchWindowController(store: store)
-        store.onLowRemaining = { snap, remaining in
-            Self.notify(snap, remaining: remaining)
+        store.onLowRemaining = { [weak store] snap, remaining in
+            let dest = store.flatMap { $0.handoverDestination(leaving: snap.kind) }
+            Self.notify(snap, remaining: remaining, destination: dest)
         }
         store.start()
         notch?.reposition()
+        observeWake()
 
         // Only introduce itself once. Opening Settings on every launch forces a
         // Dock icon and steals focus from whatever the user was doing.
@@ -69,10 +71,30 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     func hideHour() { store.hide(for: 3600) }
     func showNotch() { store.reveal() }
 
-    private static func notify(_ snap: ProviderSnapshot, remaining: Double) {
+    private func observeWake() {
+        NSWorkspace.shared.notificationCenter.addObserver(
+            forName: NSWorkspace.didWakeNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                await self?.store.refresh()
+            }
+        }
+    }
+
+    private static func notify(
+        _ snap: ProviderSnapshot,
+        remaining: Double,
+        destination: ProviderSnapshot?
+    ) {
         let content = UNMutableNotificationContent()
         content.title = "Notch Police"
-        content.body = "\(snap.displayName) has \(Int(remaining.rounded()))% left. Hover the notch and copy context to continue on another agent."
+        if let destination, let destLeft = destination.primaryRemaining {
+            content.body = "\(snap.displayName) has \(Int(remaining.rounded()))% left. Copy context for \(destination.displayName) (\(Int(destLeft.rounded()))% left)."
+        } else {
+            content.body = "\(snap.displayName) has \(Int(remaining.rounded()))% left. Hover the notch and copy context to continue on another agent."
+        }
         let request = UNNotificationRequest(
             identifier: "notchpolice.\(snap.kind.rawValue).\(Int(Date().timeIntervalSince1970))",
             content: content,

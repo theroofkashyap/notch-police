@@ -10,9 +10,11 @@ public final class UsageStore: ObservableObject {
             if oldValue.ringWindows != preferences.ringWindows {
                 for kind in ProviderKind.allCases
                 where oldValue.ringWindows[kind] != preferences.ringWindows[kind] {
-                    samples[kind] = []
                     notified.remove(kind)
                 }
+            }
+            if oldValue.enabled != preferences.enabled {
+                Task { await refresh() }
             }
         }
     }
@@ -26,12 +28,15 @@ public final class UsageStore: ObservableObject {
     public var paces: [ProviderKind: Pace] = [:]
 
     private let preferenceStore: PreferenceStore
+    private let sampleStore: SampleStore
     private let claude = ClaudeProvider()
     private let cursor = CursorProvider()
     private let chatgpt = ChatGPTProvider()
     private let antigravity = AntigravityProvider()
     private let grok = GrokProvider()
-    private var samples: [ProviderKind: [RemainingSample]] = [:]
+    /// Remaining history keyed by `provider|window`, so pinning weekly vs
+    /// 5-hour cannot mix slopes, and a relaunch still has a pace.
+    private var samples: [String: [RemainingSample]] = [:]
     private var timer: Timer?
     private var backoff: [ProviderKind: Backoff] = [:]
     private var notified: Set<ProviderKind> = []
@@ -43,18 +48,24 @@ public final class UsageStore: ObservableObject {
     }
     public var onLowRemaining: ((ProviderSnapshot, Double) -> Void)?
 
-    public init(preferenceStore: PreferenceStore = PreferenceStore()) {
+    public init(
+        preferenceStore: PreferenceStore = PreferenceStore(),
+        sampleStore: SampleStore = SampleStore()
+    ) {
         self.preferenceStore = preferenceStore
+        self.sampleStore = sampleStore
         self.preferences = preferenceStore.load()
+        self.samples = sampleStore.load()
     }
 
     public var visibleSnapshots: [ProviderSnapshot] {
-        ProviderKind.allCases.compactMap { kind in
-            guard preferences.isEnabled(kind) else { return nil }
-            let snap = snapshots.first(where: { $0.kind == kind })
-                ?? ProviderSnapshot(kind: kind, status: .needsAuth, signInHint: kind.signInHint)
-            return snap.pinning(preferences.ringWindowID(for: kind))
-        }
+        VisibleRings.snapshots(
+            from: snapshots,
+            enabled: preferences.enabled,
+            hideUnsigned: preferences.hideUnsigned,
+            ringWindowID: { preferences.ringWindowID(for: $0) },
+            demo: preferences.demo
+        )
     }
 
     public var isHidden: Bool {
@@ -85,11 +96,11 @@ public final class UsageStore: ObservableObject {
 
         let previous = snapshots
         let now = Date()
-        async let claudeSnap = poll(.claude, now: now)
-        async let cursorSnap = poll(.cursor, now: now)
-        async let chatgptSnap = poll(.chatgpt, now: now)
-        async let antigravitySnap = poll(.antigravity, now: now)
-        async let grokSnap = poll(.grok, now: now)
+        async let claudeSnap = pollIfEnabled(.claude, now: now)
+        async let cursorSnap = pollIfEnabled(.cursor, now: now)
+        async let chatgptSnap = pollIfEnabled(.chatgpt, now: now)
+        async let antigravitySnap = pollIfEnabled(.antigravity, now: now)
+        async let grokSnap = pollIfEnabled(.grok, now: now)
 
         let next = await [
             claudeSnap,
@@ -97,12 +108,23 @@ public final class UsageStore: ObservableObject {
             chatgptSnap,
             antigravitySnap,
             grokSnap,
-        ].map { snap in
+        ].compactMap { $0 }.map { snap in
             record(snap, previous: previous.first { $0.kind == snap.kind })
         }
         snapshots = next
+        if let hovered, !visibleSnapshots.contains(where: { $0.kind == hovered }) {
+            self.hovered = nil
+            expanded = false
+        }
         recordSamples(next)
         notifyIfNeeded(next)
+    }
+
+    /// Off in Settings means that local session is not read — not even to
+    /// refresh a Claude OAuth token we are not going to display.
+    private func pollIfEnabled(_ kind: ProviderKind, now: Date) async -> ProviderSnapshot? {
+        guard preferences.isEnabled(kind) else { return nil }
+        return await poll(kind, now: now)
     }
 
     /// Skips the request entirely while a provider's backoff is in force. The
@@ -147,7 +169,11 @@ public final class UsageStore: ObservableObject {
     }
 
     public func pace(for kind: ProviderKind) -> Pace? {
-        Forecast.pace(samples: samples[kind] ?? [])
+        Forecast.pace(samples: samples[sampleKey(for: kind)] ?? [])
+    }
+
+    public func handoverDestination(leaving kind: ProviderKind) -> ProviderSnapshot? {
+        Handover.destination(among: visibleSnapshots, leaving: kind)
     }
 
     /// Async because building this reads session transcripts off disk, and the
@@ -158,7 +184,8 @@ public final class UsageStore: ObservableObject {
         return Handover.make(
             snapshot: snap,
             pace: pace(for: kind),
-            excerpt: await excerpt(for: kind)
+            excerpt: await excerpt(for: kind),
+            destination: handoverDestination(leaving: kind)
         )
     }
 
@@ -171,7 +198,8 @@ public final class UsageStore: ObservableObject {
         return Handover.summaryPrompt(
             snapshot: snap,
             pace: pace(for: kind),
-            project: await excerpt(for: kind)?.project
+            project: await excerpt(for: kind)?.project,
+            destination: handoverDestination(leaving: kind)
         )
     }
 
@@ -204,12 +232,22 @@ public final class UsageStore: ObservableObject {
         let now = Date()
         for snap in snaps {
             let pinned = snap.pinning(preferences.ringWindowID(for: snap.kind))
-            guard snap.status == .ok, let remaining = pinned.primaryRemaining else { continue }
-            var list = samples[snap.kind] ?? []
+            guard snap.status == .ok, let remaining = pinned.primaryRemaining,
+                  let windowID = pinned.displayed?.id
+            else { continue }
+            let key = SampleArchive.key(kind: snap.kind, windowID: windowID)
+            var list = samples[key] ?? []
             list.append(RemainingSample(at: now, remaining: remaining))
-            let cutoff = now.addingTimeInterval(-6 * 3600)
-            samples[snap.kind] = list.filter { $0.at >= cutoff }
+            samples[key] = list
         }
+        samples = SampleArchive.prune(samples, now: now)
+        sampleStore.save(samples, now: now)
+    }
+
+    private func sampleKey(for kind: ProviderKind) -> String {
+        let snap = visibleSnapshots.first(where: { $0.kind == kind })
+        let windowID = snap?.displayed?.id ?? RingWindowPin.tightest
+        return SampleArchive.key(kind: kind, windowID: windowID)
     }
 
     private func notifyIfNeeded(_ snaps: [ProviderSnapshot]) {

@@ -69,6 +69,23 @@ public enum ProviderKind: String, CaseIterable, Identifiable, Codable, Sendable 
         }
     }
 
+    /// What this remaining actually covers. Chat and code often share a plan;
+    /// the ring is the pool, not the window you typed in.
+    public var quotaPoolHint: String {
+        switch self {
+        case .claude:
+            return "Claude Code and claude.ai share this remaining — chatting there burns the same windows."
+        case .cursor:
+            return "Cursor's editor allowance. Grok (or any model) chosen inside Cursor spends this pool."
+        case .chatgpt:
+            return "The ChatGPT plan: Codex, ChatGPT, and the desktop app share this remaining."
+        case .antigravity:
+            return "Antigravity while the app or agy is running — not Gemini on the web."
+        case .grok:
+            return "Grok Build only. grok.com chat is a separate allowance."
+        }
+    }
+
     /// Windows that exist on typical plans, so Settings can offer a pin
     /// before the first poll (and while a scoped cap is temporarily absent).
     public var stableRingWindows: [RingWindowOption] {
